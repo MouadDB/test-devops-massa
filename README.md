@@ -1,19 +1,118 @@
-Bienvenue dans le test technique pour le poste de stagiaire DevOps à Massa.
+## Test DevOps Massa
 
-## Enoncé
+⚠️ **Pré-requis**
 
-Il y a deux micro-services `patient` et `register`. Le but est de pouvoir déployer ces deux micro-services dans des pods différents avec des images docker.
+- **Docker** pour building et pushing les images.
+- **Minikube** avoir un cluster local kubernetes
 
-Après avoir créer les pods avec les deux micro-services il faut que les pods `register` soit capable de communiquer avec les pods `patient`.
+Pour déployer les deux micro-services dans des pods différents avec des images docker, nous avons besoin d'un environnement de conteneurisation tel que Kubernetes. Voici les étapes pour réaliser cela :
 
-En bonus, vous pouvez faire en sorte que le `register` est accès à X types de `patient` qui auraient des listes de patients différents (cela peut etre la même liste avec un champ qui diffère comme la date de consultation en plus). Les listes de patients seraient passées au moment de la création des pods (ou autre système Kubernetes utilisés dans ce cas) et donc pourraient changer d'un déploiement à l'autre.
+1. Créer les images docker pour les micro-services `patient` et `register`et les pusher sur docker hub.
+2. Créer un fichier de déploiement Kubernetes pour le micro-service register qui contient les spécifications du pod et de l'image Docker à utiliser et aussi le service register pour exposer le port `30007` au public.
+3. Créer un fichier de déploiement Kubernetes pour le micro-service patient qui contient les spécifications du pod et de l'image Docker à utiliser et aussi le service patient qui permetre les pods de register a connecter aux pods patient via le port `8081`.
+4. créer le fichier `config-map` qui sera utilisé dans `register.yaml` pour charger les listes de patients.
+5. Démarrage du cluster kubernetes et déploiement des microservices `registre` et `patient` et config-map avec la commande `kuberctl apply -f fichier.yaml`
+6. Obtenir l'adresse IP externe du service d'enregistrement via la commande `minikube service register-service--url`
 
-Tout autre bonus est appréciable.
+### Creation images Docker `register` et `patient` 
 
-## Rendu
+#### Creation Image Register
+```bash
+cd regsiter
+docker build -t register:1.0 .
+```
 
-Le dossier devra être rendu en ZIP et contenir un fichier à la racine qui explique comment utiliser le projet (l'usage doit supporter Linux, Mac et Windows).
+#### Pushing Image Register
+```bash
+docker tag register:1.0 mouaddb/register:latest
+docker push mouaddb/register:latest
+```
 
-Un fichier expliquant votre reflexion au cours du tests, les difficultés rencontrées est un plus.
 
-Pour la moindre question n'hésitez pas à me contacter à af@massa.net
+#### Creation Image Patient
+```bash
+cd patient
+docker build -t patient:1.0 .
+```
+
+#### Pushing Image Patient
+```bash
+docker tag patient:1.0 mouaddb/patient:latest
+docker push mouaddb/patient:latest
+```
+
+### Les fichiers Kubernetes les micro-services
+
+#### ``regsiter.yaml``
+
+Le premier bloc de code décrit un objet de type "Deployment" nommé "register" avec trois répliques, qui utilise l'image Docker "mouaddb/register:latest" et expose le port 8080. Il définit également deux variables d'environnement "PATIENT_TYPE" et "PATIENT_LIST_FILE" et monte un volume "patient-types-volume" qui est configuré par la ConfigMap "patient-types".
+
+Le deuxième bloc de code décrit un objet de type "Service" nommé "register-service" de type "NodePort" qui permet l'accès à l'application en utilisant le port 30007. Le service redirige le trafic vers les répliques du déploiement "register" en utilisant le label "app: register".
+
+
+#### ``patient.yaml``
+
+Le premier bloc de code décrit un objet de type "Deployment" nommé "patient" avec trois répliques, qui utilise l'image Docker "mouaddb/patient:latest" et expose le port 8081. Il définit également un label "app: patient" pour l'objet.
+
+Le deuxième bloc de code décrit un objet de type "Service" nommé "patient-service" qui redirige le trafic vers les répliques du déploiement "patient" en utilisant le label "app: patient". Le service expose le port 8081 pour les connexions entrantes et redirige le trafic vers le port 8081 pour permettre les pods `register` re communiquer avec les pods`patient`.
+
+#### ``config.yaml``
+Ce fichier décrit une ressource Kubernetes de type "ConfigMap" nommée "patient-types". Cette ressource contient deux fichiers JSON nommés "patient-list-1.json" et "patient-list-2.json".
+
+Pour permettre au register d'accéder à différents types de patients avec des listes de patients différents, j'ai utilisé des variables d'environnement et le fichier de config-map pour pour spécifier la liste de patients à utiliser pour chaque déploiement de pod et. Modifiez le fichier les variables `PATIENT_TYPE` et `PATIENT_LIST_FILE` dans le ficher `regsiter.yaml` pour spécifier la liste de patients à utiliser.
+
+### Déploiement
+
+En commençant par charger le fichier de mappage de configuration, le fichier de register et apres le fichier patient
+
+```bash
+kubectl apply -f config-map.yaml
+kubectl apply -f register.yaml
+kubectl apply -f patient.yaml
+```
+
+### Testing
+
+Pour obtenir l'URL du service d'enregistrement à vérifier:
+
+```bash
+minikube service register-service--url
+```
+vous pouvez accéder ```http://192.168.59.101:30007/patients```
+
+### Patient Lists
+
+Pour voir la liste des patients du micro-service patient, vous pouvez affecter la variable "PATIENT_TYPE" dans le fichier "register.yaml" au "BASIC" ou autre chose que "OTHER".
+
+### Détruire tous les déploiements
+
+```bash
+kubectl delete service register-service
+kubectl delete service patient-service
+kubectl delete deployment patient
+kubectl delete deployment register
+```
+
+### Les difficultés rencontrées
+
+La difficulté que j'avais rencontrée était de faire communiquer deux micro services entre eux sans changer le code dans `register/index.js`, j'ai donc fini par changer la variable `PATIENT_ADDRESS` par le nom de micro-service de `patient`:
+```javascript
+const PATIENT_ADDRESS = "http://patient-service:8081"
+```
+
+et pour importer la liste des dossiers des patients à partir du conteneur et accéder aux variables d'environnement, j'ai ajouté ce code
+```javascript
+
+// Import patient list
+if (process.env.PATIENT_TYPE == "OTHER")
+{
+  patients = require('/etc/config/'+process.env.PATIENT_LIST_FILE)
+}
+```
+et aussi en ajoutant une condition dans la route `/patient/:id`
+```javascript
+
+if (process.env.PATIENT_TYPE == "OTHER") {
+  res.send(patients.find((patient) => patient.patientId == req.params.id))
+}
+```
