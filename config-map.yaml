@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: patient-types
+data:
+  patient-list-1.json: |
+    [
+      {
+        "patientId": 1,
+        "name": "lucas",
+        "date_consultation": "01/01/2023"
+      },
+      {
+        "patientId": 2,
+        "name": "thomas",
+        "date_consultation": "05/01/2023"
+      },
+      {
+        "patientId": 3,
+        "name": "mouad",
+        "date_consultation": "10/02/2023"
+      }
+    ]
+  patient-list-2.json: |
+    [
+      {
+        "patientId": 1,
+        "name": "adrien",
+        "date_consultation": "12/03/2022"
+      },
+      {
+        "patientId": 2,
+        "name": "loic",
+        "date_consultation": "17/06/2022"
+      },
+      {
+        "patientId": 3,
+        "name": "augustin",
+        "date_consultation": "22/12/2022"
+      }
+    ]
