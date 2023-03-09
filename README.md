@@ -116,3 +116,6 @@ if (process.env.PATIENT_TYPE == "OTHER") {
   res.send(patients.find((patient) => patient.patientId == req.params.id))
 }
 ```
+
+### Résumé
+Le test était assez simple, facile et intéressant à la fois, car il gère l'aspect de la communication entre les microservices, et ce sujet m'intéresse beaucoup car je travaille sur un projet avec les mêmes concepts, donc c'est très instructif
